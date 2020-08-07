@@ -29,7 +29,7 @@ TEMPLATE_FILENAME = 'graphicsTemplate.xlsx'; % 基础图形模板
 [~, graphicsName] = xlsfinfo(TEMPLATE_FILENAME);
 for iter = 1:numel(graphicsName)
     graphicsTemplate(iter).Name = graphicsName{iter};
-    [~,graphicsTemplate(iter).Data,~] = xlsread(TEMPLATE_FILENAME, graphicsName{iter});
+    [~, ~, graphicsTemplate(iter).Data] = xlsread(TEMPLATE_FILENAME, graphicsName{iter}, '');
 end
 GUI.graphicsTemplate = graphicsTemplate;
 clear graphicsTemplate TEMPLATE_FILENAME;
@@ -66,7 +66,7 @@ GUI.pMnu_Type = uicontrol();
 GUI.pMnu_Type.Style = 'popupmenu';
 GUI.pMnu_Type.Units = 'pixel';
 GUI.pMnu_Type.Position = [GUI.btn_loadConfig.Position(1), GUI.btn_loadConfig.Position(2)-20-10, 80, 20];
-GUI.pMnu_Type.String = graphicsName;
+GUI.pMnu_Type.String = graphicsName(2:end);
 
 % 增加uitab
 GUI.btn_addUitab = uicontrol();
@@ -132,7 +132,7 @@ end
 %% call of btn_addUitab
 function GUI = call_btn_addUitab(GUI)
     selectType = GUI.pMnu_Type.String{GUI.pMnu_Type.Value};
-    typeNum = startsWith(GUI.uitabName, selectType);
+    typeNum = sum(startsWith(GUI.uitabName, selectType));
     graphicsTemplate = GUI.graphicsTemplate;
     if (strcmp(GUI.ed_drawName.String, ""))
         newName = selectType + "_" + num2str(typeNum+1);
@@ -177,18 +177,34 @@ function call_btn_generateCode(GUI)
     fprintf(fileID, '%s\n', 'axesHandle = figureHandle.Children;');
     fprintf(fileID, '%s\n', 'graphHandle = axesHandle.Children;');
     fprintf(fileID, '%s\n', '%% figure');
-    % for dataIndex = 1:numel(GUI.tableInfo)
     tmpTable = GUI.tableInfo(1).Data;
-    [Niter, ~] = size(tmpTable);
-    for iter = 1:Niter
-        fprintf(fileID, '%s\n', ['figureHandle.', tmpTable{iter, 1}, ' = ', tmpTable{iter, 2}, '; % ', tmpTable{iter, 3}]);
-    end
-    for graphIndex = 2:numel(GUI.tableInfo)
-        fprintf(fileID, '%s\n', ['%% ', GUI.uitabName(graphIndex)]);
-        tmpTable = GUI.tableInfo(graphIndex).Data;
-        [Niter, ~] = size(tmpTable);
-        for iter = 1:Niter
+    for iter = 1:3
+        if(~strcmpi(tmpTable{iter, 2}, 'auto'))
             fprintf(fileID, '%s\n', ['figureHandle.', tmpTable{iter, 1}, ' = ', tmpTable{iter, 2}, '; % ', tmpTable{iter, 3}]);
+        end
+    end
+    for iter = 4:size(tmpTable, 1)
+        if(~strcmpi(tmpTable{iter, 2}, 'auto'))
+            fprintf(fileID, '%s\n', ['axesHandle.', tmpTable{iter, 1}, ' = ', tmpTable{iter, 2}, '; % ', tmpTable{iter, 3}]);
+        end
+    end
+
+    graphProperty = [];
+    for graphIndex = 2:numel(GUI.tableInfo)
+        graphType = char(GUI.uitabName(graphIndex));
+        graphType = split(graphType, '_'); graphType = graphType{1};
+        tmpTable = GUI.tableInfo(graphIndex).Data;
+        if(isfield(graphProperty, graphType))
+            numStruct = eval(['numel(graphProperty.',graphType,');']);
+            for iter = 1:size(tmpTable, 1)
+                if(~strcmpi(tmpTable{iter, 2}, 'auto'))
+                    eval(['graphProperty.', graphType,'(', num2str(numStruct),'+1).', tmpTable{iter, 1}, ' = "', tmpTable{iter, 2},'";']);
+                end
+            end
+        else
+            for iter = 1:size(tmpTable, 1)
+                eval(['graphProperty.', graphType,'(1).', tmpTable{iter, 1}, ' = "', tmpTable{iter, 2},'";']);
+            end
         end
     end
     fclose(fileID); % close file 
